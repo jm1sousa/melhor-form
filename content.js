@@ -1,51 +1,36 @@
 (function () {
-  let isRunning = false, filledCount = 0, settings = {}, savedState = null, widget = null;
+  let isRunning = false;
+  let filledCount = 0;
+  let settings = {};
+  let widget = null;
 
   /* =========================
-     WIDGET (igual ao original)
+     WIDGET
      ========================= */
-  const widgetCSS = `
-    #formfiller-widget { position: fixed; top: 20px; right: 20px; width: 200px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border: 1px solid #374151; border-radius: 12px; padding: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.4); z-index: 999999; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; color: #eaeaea; cursor: move; user-select: none; }
-  `;
-
   function createWidget() {
     if (widget) return;
-    const style = document.createElement('style');
-    style.textContent = widgetCSS;
-    document.head.appendChild(style);
 
     widget = document.createElement('div');
-    widget.id = 'formfiller-widget';
+    widget.style.cssText = `
+      position:fixed;top:20px;right:20px;z-index:999999;
+      background:#111827;color:#fff;padding:10px;
+      border-radius:8px;font-size:12px
+    `;
     widget.innerHTML = `
-      <strong>🔧 FormFiller</strong><br>
+      <b>FormFiller</b><br>
       <span id="ff-count">0</span> páginas<br><br>
-      <button id="ff-start">▶ Iniciar</button>
-      <button id="ff-stop" disabled>⏹ Parar</button>
+      <button id="ff-start">▶</button>
+      <button id="ff-stop">⏹</button>
     `;
     document.body.appendChild(widget);
 
     document.getElementById('ff-start').onclick = () => {
       isRunning = true;
       filledCount = 0;
-      clearState();
-      runFormFiller();
+      run();
     };
     document.getElementById('ff-stop').onclick = stop;
   }
-
-  /* =========================
-     GERADORES
-     ========================= */
-  const gen = {
-    firstName: () => ['João','Maria','Pedro','Ana','Carlos'][Math.floor(Math.random()*5)],
-    lastName: () => ['Silva','Santos','Costa','Pereira'][Math.floor(Math.random()*4)],
-    fullName: () => `${gen.firstName()} ${gen.lastName()}`,
-    email: () => `teste${Date.now()}@exemplo.com`,
-    phone: () => '91' + Math.floor(Math.random()*10000000).toString().padStart(7,'0'),
-    date: () => `199${Math.floor(Math.random()*10)}-0${Math.floor(Math.random()*9)+1}-1${Math.floor(Math.random()*9)}`,
-    paragraph: () => 'Texto de teste automático.',
-    sentence: () => 'Resposta automática.'
-  };
 
   /* =========================
      HELPERS
@@ -53,136 +38,162 @@
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const isVisible = el => el && el.offsetParent !== null;
 
-  function getValue(f) {
-    const t = (f.type || '').toLowerCase();
-    const name = (f.name || f.id || '').toLowerCase();
-    if (t === 'email' || name.includes('email')) return gen.email();
-    if (t === 'tel') return gen.phone();
-    if (t === 'date') return gen.date();
-    if (f.tagName === 'TEXTAREA') return gen.paragraph();
-    return gen.sentence();
+  function randomDate() {
+    const d = new Date(
+      1970 + Math.floor(Math.random() * 40),
+      Math.floor(Math.random() * 12),
+      Math.floor(Math.random() * 28) + 1
+    );
+    return {
+      iso: d.toISOString().slice(0, 10),
+      mdY: `${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getDate().toString().padStart(2,'0')}/${d.getFullYear()}`,
+      dmY: `${d.getDate().toString().padStart(2,'0')}/${(d.getMonth()+1).toString().padStart(2,'0')}/${d.getFullYear()}`
+    };
   }
 
-  async function fillField(f) {
-    const v = getValue(f);
-    f.focus();
-    f.value = '';
-    for (let i = 0; i < v.length; i++) {
-      f.value = v.slice(0, i + 1);
-      f.dispatchEvent(new Event('input', { bubbles: true }));
-      await sleep(15);
+  function detectDateFormat(ph = '') {
+    ph = ph.toLowerCase();
+    if (ph.includes('mm') && ph.includes('dd')) return 'mdY';
+    if (ph.includes('dd') && ph.includes('mm')) return 'dmY';
+    return 'mdY';
+  }
+
+  async function typeValue(el, value) {
+    el.focus();
+    el.value = '';
+    for (let i = 0; i < value.length; i++) {
+      if (!isRunning) return;
+      el.value += value[i];
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      await sleep(25);
     }
-    f.dispatchEvent(new Event('change', { bubbles: true }));
-    f.blur();
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    el.blur();
   }
 
-  function fillSelect(s) {
-    const opts = [...s.options].filter(o => o.value);
+  /* =========================
+     FILLERS
+     ========================= */
+  async function fillInput(el) {
+    if (!isRunning) return;
+
+    const type = (el.type || '').toLowerCase();
+    const ph = el.placeholder || '';
+    const name = (el.name || el.id || '').toLowerCase();
+
+    if (type === 'date') {
+      await typeValue(el, randomDate().iso);
+      return;
+    }
+
+    if (name.includes('date') || ph.includes('mm') || ph.includes('dd')) {
+      const d = randomDate();
+      const fmt = detectDateFormat(ph);
+      await typeValue(el, d[fmt]);
+      return;
+    }
+
+    await typeValue(el, 'Texto automático');
+  }
+
+  function fillSelect(el) {
+    if (!isRunning) return;
+    const opts = [...el.options].filter(o => o.value);
     if (opts.length) {
-      s.value = opts[Math.floor(Math.random() * opts.length)].value;
-      s.dispatchEvent(new Event('change', { bubbles: true }));
+      el.value = opts[Math.floor(Math.random() * opts.length)].value;
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
 
-  function fillCheckbox(c) {
-    if (!c.checked) {
-      c.click();
-    }
+  function fillCheckbox(el) {
+    if (!isRunning) return;
+    if (!el.checked) el.click();
   }
 
-  function fillRadio(radios) {
-    radios[Math.floor(Math.random() * radios.length)].click();
+  async function fillContentEditable(el) {
+    if (!isRunning) return;
+    el.focus();
+    el.innerText = 'Texto automático';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
-  function fillCustomDropdown(el) {
+  async function fillCustomDropdown(el) {
+    if (!isRunning) return;
     el.click();
-    setTimeout(() => {
-      const options = document.querySelectorAll('[role="option"]');
-      if (options.length) {
-        options[Math.floor(Math.random() * options.length)].click();
-      }
-    }, 300);
+    await sleep(300);
+    if (!isRunning) return;
+    const opts = document.querySelectorAll('[role=option]');
+    if (opts.length) opts[Math.floor(Math.random() * opts.length)].click();
   }
 
   /* =========================
      CORE
      ========================= */
   async function fillPage() {
-    let filled = false;
+    let didFill = false;
 
-    const inputs = document.querySelectorAll(
-      'input:not([type=hidden]), textarea'
-    );
-
-    for (const f of inputs) {
+    const inputs = document.querySelectorAll('input:not([type=hidden]),textarea');
+    for (const el of inputs) {
       if (!isRunning) return false;
-      if (isVisible(f) && !f.disabled && (!f.value || f.value.length < 2)) {
-        await fillField(f);
-        filled = true;
+      if (isVisible(el) && !el.disabled && (!el.value || el.value.length < 2)) {
+        await fillInput(el);
+        didFill = true;
         await sleep(settings.delay || 300);
       }
     }
 
-    document.querySelectorAll('select').forEach(s => {
-      if (isVisible(s) && s.selectedIndex <= 0) {
-        fillSelect(s);
-        filled = true;
+    for (const el of document.querySelectorAll('select')) {
+      if (!isRunning) return false;
+      if (isVisible(el) && el.selectedIndex <= 0) {
+        fillSelect(el);
+        didFill = true;
       }
-    });
-
-    document.querySelectorAll('input[type=checkbox]').forEach(fillCheckbox);
-
-    const radios = {};
-    document.querySelectorAll('input[type=radio]').forEach(r => {
-      radios[r.name] = radios[r.name] || [];
-      radios[r.name].push(r);
-    });
-    Object.values(radios).forEach(g => fillRadio(g));
-
-    document.querySelectorAll('[contenteditable=true]').forEach(el => {
-      if (isVisible(el) && !el.innerText.trim()) {
-        el.innerText = gen.paragraph();
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        filled = true;
-      }
-    });
-
-    document.querySelectorAll('[role=combobox],[aria-haspopup=listbox]')
-      .forEach(fillCustomDropdown);
-
-    if (filled) {
-      filledCount++;
-      document.getElementById('ff-count').textContent = filledCount;
-      saveState();
     }
 
-    return filled;
+    for (const el of document.querySelectorAll('input[type=checkbox]')) {
+      if (!isRunning) return false;
+      if (isVisible(el)) fillCheckbox(el);
+    }
+
+    for (const el of document.querySelectorAll('[contenteditable=true]')) {
+      if (!isRunning) return false;
+      if (isVisible(el) && !el.innerText.trim()) {
+        await fillContentEditable(el);
+        didFill = true;
+      }
+    }
+
+    for (const el of document.querySelectorAll('[role=combobox],[aria-haspopup=listbox]')) {
+      if (!isRunning) return false;
+      await fillCustomDropdown(el);
+      didFill = true;
+    }
+
+    if (didFill) {
+      filledCount++;
+      document.getElementById('ff-count').textContent = filledCount;
+    }
+
+    return didFill;
   }
 
-  async function runFormFiller() {
+  async function run() {
     if (!isRunning) return;
     await fillPage();
     await sleep(800);
-    if (isRunning) runFormFiller();
+    if (isRunning) run();
   }
 
   function stop() {
     isRunning = false;
-    saveState();
-  }
-
-  function saveState() {
-    chrome.storage.local.set({ formFillerState: { filledCount } });
-  }
-  function clearState() {
-    chrome.storage.local.remove(['formFillerState']);
+    console.log('FormFiller stopped');
   }
 
   chrome.runtime.onMessage.addListener(msg => {
     if (msg.action === 'start') {
       settings = msg.settings || {};
       isRunning = true;
-      runFormFiller();
+      run();
     }
     if (msg.action === 'stop') stop();
   });
