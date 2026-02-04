@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <style>
     body {
       width: 220px;
@@ -19,8 +19,12 @@
       font-weight: 600;
       cursor: pointer;
     }
-    #start { background: #22c55e; }
-    #stop { background: #ef4444; }
+    #start {
+      background: #22c55e;
+    }
+    #stop {
+      background: #ef4444;
+    }
   </style>
 </head>
 <body>
@@ -29,19 +33,19 @@
   <button id="stop">⏹ Parar</button>
 
   <script>
-    const startBtn = document.getElementById('start');
-    const stopBtn = document.getElementById('stop');
+    const startBtn = document.getElementById("start");
+    const stopBtn = document.getElementById("stop");
 
     startBtn.onclick = async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) return;
-      chrome.tabs.sendMessage(tab.id, { action: 'start' });
+      chrome.tabs.sendMessage(tab.id, { action: "start" });
     };
 
     stopBtn.onclick = async () => {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab) return;
-      chrome.tabs.sendMessage(tab.id, { action: 'stop' });
+      chrome.tabs.sendMessage(tab.id, { action: "stop" });
     };
   </script>
 </body>
